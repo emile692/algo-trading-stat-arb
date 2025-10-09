@@ -1,0 +1,17 @@
+universe:
+  tickers: [GS, MS, JPM, BAC, C, WFC, USB, BK, PNC]
+data:
+  source: yfinance
+  period: "1y"
+  interval: "1h"
+  field: "Adj Close"
+  tz: "Europe/Paris"
+paths:
+  processed_close: "data/processed/close_1h.parquet"
+  processed_returns: "data/processed/returns_1h.parquet"
+  corr: "data/processed/corr_1h.parquet"
+pairs:
+  min_lookback: 500
+  fdr_alpha: 0.1
+  hl_min: 2
+  hl_max: 200
