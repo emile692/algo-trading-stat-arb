@@ -1,0 +1,16 @@
+[project]
+name = "algo-trading-stat-arb"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "fastparquet>=2024.11.0",
+    "matplotlib>=3.10.7",
+    "pyarrow>=21.0.0",
+    "pyyaml>=6.0.3",
+    "seaborn>=0.13.2",
+    "statsmodels>=0.14.5",
+    "tqdm>=4.67.1",
+    "yfinance>=0.2.66",
+]

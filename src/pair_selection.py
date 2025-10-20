@@ -231,7 +231,7 @@ def analyze_pairs(prices: pd.DataFrame,
         x = pair_df[b]
 
         # Cointegration
-        pval = engle_granger_min_pvalue(y, x)
+        pval, direction = engle_granger_min_pvalue(y, x)
 
         # Hedge ratio OLS
         try:
