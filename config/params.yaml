@@ -1,17 +1,99 @@
-universe:
-  tickers: [GS, MS, JPM, BAC, C, WFC, USB, BK, PNC]
-data:
-  source: yfinance
-  period: "2y"
-  interval: "1h"
-  field: "Adj Close"
-  tz: "Europe/Paris"
-paths:
-  processed_close: "data/processed/close_1h.parquet"
-  processed_returns: "data/processed/returns_1h.parquet"
-  corr: "data/processed/corr_1h.parquet"
-pairs:
-  min_lookback: 500
-  fdr_alpha: 0.1
-  hl_min: 2
-  hl_max: 200
+# ==========================
+# Paramètres généraux
+# ==========================
+seed: 42
+freq: "1H"
+train_ratio: 0.7
+val_ratio: 0.15
+test_ratio: 0.15
+
+# ==========================
+# Paramètres de backtest
+# ==========================
+backtest:
+  window: "expanding"
+  rebalance: "monthly"
+  slippage: 0.0001
+  transaction_cost: 0.0002
+
+# ==========================
+# Univers à backtester (multi-run)
+# ==========================
+mode: per_universe
+start: "2024-01-01"
+interval: "1h"
+
+universes:
+  # Technologies & Innovation
+  BIG_TECH:
+    assets: [AAPL, MSFT, GOOGL, AMZN, META, NVDA, TSLA, ADBE, INTC, CSCO]
+  SEMICONDUCTORS:
+    assets: [NVDA, AMD, INTC, TSM, ASML, AVGO, QCOM, MU, LRCX, AMAT]
+  FINTECH:
+    assets: [PYPL, V, MA, AXP, SHOP, COIN, SOFI, AFRM]
+  CLOUD_COMPUTING:
+    assets: [SNOW, CRM, NOW, TEAM, ORCL, IBM, NET, PANW, CRWD, ZS]
+
+  # Finance & Services
+  BANKING_GLOBAL:
+    assets: [JPM, GS, MS, BAC, C, HSBC, BNPQY, SAN, DB, UBS]
+  INSURANCE:
+    assets: [UNH, CVS, CI, HUM, AFL, PRU, MET, ALL]
+  PAYMENTS:
+    assets: [V, MA, PYPL, AXP, GPN, FIS, WU, ADP]
+
+  # Énergie & Matières Premières
+  OIL_MAJORS:
+    assets: [XOM, CVX, BP, SHEL, TTE, COP, EOG, SLB, OXY, VLO]
+  RENEWABLE_ENERGY:
+    assets: [NEE, ENPH, FSLR, SEDG, RUN, PLUG, BLDP, BEP, CWEN]
+  MINING:
+    assets: [BHP, RIO, VALE, FCX, NEM, AEM, SCCO, LAC, MP]
+
+  # Consommation & Retail
+  ECOMMERCE:
+    assets: [AMZN, BABA, JD, PDD, MELI, ETSY, W, SHOP, BIDU]
+  RETAIL_CHAINS:
+    assets: [WMT, TGT, COST, HD, LOW, DG, DLTR, ULTA, AZO, TSCO]
+  LUXURY_GOODS:
+    assets: [LVMUY, CFR, RICOY, BURBY, PVH, RL, NKE]
+
+  # Santé & Biotechnologie
+  PHARMACEUTICALS:
+    assets: [JNJ, PFE, MRK, ABBV, GSK, BMY, NVS, AZN]
+  BIOTECH:
+    assets: [BIIB, AMGN, GILD, VRTX, REGN, ILMN, BIO, QGEN, ARKG, XBI]
+  MEDICAL_DEVICES:
+    assets: [MDT, ISRG, BSX, ABT, DXCM, EW, ZBH, HOLX, TFX]
+
+  # Industrie & Matériaux
+  AEROSPACE_DEFENSE:
+    assets: [BA, LMT, NOC, RTX, GD, HEI, TDG, TXT, SPR, HXL]
+  INDUSTRIALS:
+    assets: [GE, HON, CAT, DE, MMM, ITW, ETN, ROK, DOV, FAST]
+  CHEMICALS:
+    assets: [LIN, DOW, BASFY, SHW, ECL, PPG, ALB, IFF, FMC, NEM]
+
+  # Services & Divertissements
+  MEDIA_ENTERTAINMENT:
+    assets: [DIS, NFLX, CMCSA, EA, TTWO, WBD, SPOT, LYV, IMAX]
+  TRAVEL_HOSPITALITY:
+    assets: [MAR, HLT, ABNB, EXPE, BKNG, RCL, NCLH, CCL, DAL, AAL]
+  TELECOMS:
+    assets: [VZ, T, TMUS, CHTR, CMCSA, KT, SKM]
+
+  # Immobilier & Infrastructure
+  REITS:
+    assets: [AMT, PLD, EQIX, CCI, O, PSA, SPG, AVB, VTR, WELL]
+  INFRASTRUCTURE:
+    assets: [NEE, D, SO, DUK, AEP, EXC, SRE, AWK, WTRG, XEL]
+
+  # Marchés Émergents
+  EMERGING_MARKETS:
+    assets: [BABA, TCEHY, JD, PDD, MELI, INFY, TSM, VALE]
+
+  # Dividendes & Value
+  DIVIDEND_ARISTOCRATS:
+    assets: [JNJ, PG, KO, PEP, MMM, ABT, ADM, CVX, XOM, LOW]
+  VALUE_STOCKS:
+    assets: [BRK-B, JPM, BAC, WFC, PFE, MO, GM, F, INTC, MMM]

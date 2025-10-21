@@ -4,47 +4,67 @@
 import yfinance as yf
 import pandas as pd
 from datetime import datetime
+from pathlib import Path
 
-def download_prices(tickers, start="2020-01-01", end=None, interval="1h", path_out="prices.csv"):
+def _need_redownload(path_out: str, expected: list[str]) -> bool:
+    p = Path(path_out)
+    if not p.exists():
+        return True
+    try:
+        df = pd.read_csv(p, nrows=1)
+        cols = [c for c in df.columns if c != "Date"]
+        # on vérifie que l'ensemble ET l'ordre correspondent
+        return cols != list(expected)
+    except Exception:
+        return True
+
+def download_prices(
+    tickers: list[str],
+    start: str = "2020-01-01",
+    end: str | None = None,
+    interval: str = "1h",
+    path_out: str = "data/prices.csv",
+    force: bool = False,
+) -> pd.DataFrame:
     """
-    Télécharge les prix ajustés pour une liste de tickers Yahoo Finance
-    et sauvegarde un CSV aligné sur un même index temporel.
+    Télécharge les prix ajustés pour `tickers` et sauvegarde un CSV
+    aligné avec uniquement ces colonnes (dans le même ordre).
     """
-    print(f"⏳ Téléchargement {len(tickers)} tickers de {start} à {end or 'today'} ({interval})")
+    Path(path_out).parent.mkdir(parents=True, exist_ok=True)
+
+    if not force and not _need_redownload(path_out, tickers):
+        print(f"📁 {Path(path_out).name} déjà conforme, skip.")
+        return pd.read_csv(path_out, parse_dates=["Date"], index_col="Date")
+
+    print(f"⏳ Téléchargement {len(tickers)} tickers de {start} à {end or 'today'} ({interval}) → {path_out}")
     data = yf.download(
         tickers=tickers,
         start=start,
         end=end or datetime.today().strftime("%Y-%m-%d"),
         interval=interval,
-        group_by='ticker',
+        group_by="ticker",
         auto_adjust=True,
         progress=True,
-        threads=True
+        threads=True,
     )
 
-    # Harmoniser en un DataFrame plat
     close_df = pd.DataFrame()
+    missing = []
     for t in tickers:
-        if (t, 'Close') in data.columns:
-            close_df[t] = data[t]['Close']
-        elif 'Close' in data.columns:  # si single ticker
-            close_df[t] = data['Close']
+        if isinstance(data.columns, pd.MultiIndex) and (t, "Close") in data.columns:
+            close_df[t] = data[t]["Close"]
+        elif "Close" in data.columns and len(tickers) == 1:
+            close_df[t] = data["Close"]
         else:
-            print(f"⚠️ {t}: colonne 'Close' introuvable.")
+            missing.append(t)
 
+    if missing:
+        print("⚠️ Tickeurs introuvables (colonne 'Close' absente) :", ", ".join(missing))
+
+    close_df = close_df.reindex(columns=tickers)  # ordre = input
     close_df = close_df.dropna(how="all")
     close_df.index.name = "Date"
     close_df.to_csv(path_out)
     print(f"✅ Sauvegardé → {path_out} | shape={close_df.shape}")
 
     return close_df
-
-if __name__ == "__main__":
-
-    tickers = [
-        "GS", "JPM", "BK", "WFC", "MS", "C", "USB",  # banques
-        "XOM", "CVX", "BP",                          # énergie
-        "AAPL", "MSFT", "GOOGL", "AMZN"              # tech (pour tests cross-sector)
-    ]
-    df = download_prices(tickers, start="2024-01-01", interval="1h", path_out="prices.csv")
-    print(df.tail())
