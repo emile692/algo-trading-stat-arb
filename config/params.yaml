@@ -6,6 +6,7 @@ freq: "1H"
 train_ratio: 0.7
 val_ratio: 0.15
 test_ratio: 0.15
+initial_capital: 10000
 
 # ==========================
 # Paramètres de backtest
@@ -97,3 +98,25 @@ universes:
     assets: [JNJ, PG, KO, PEP, MMM, ABT, ADM, CVX, XOM, LOW]
   VALUE_STOCKS:
     assets: [BRK-B, JPM, BAC, WFC, PFE, MO, GM, F, INTC, MMM]
+
+  #Futures
+  EQUITY_INDEX_FUTURES:
+    assets: [ ES=F, NQ=F, YM=F, RTY=F, MES=F, MNQ=F, M2K=F, MYM=F ]
+
+  US_RATES_FUTURES:
+    assets: [ ZN=F, ZF=F, ZT=F, ZB=F, UB=F, TN=F ]
+
+  EURO_RATES_FUTURES:
+    assets: [HR=F, RX=F]
+
+  MAJOR_FX_FUTURES:
+    assets: [ 6E=F, 6J=F, 6B=F, 6A=F, 6C=F, 6S=F, 6N=F, M6E=F ]
+
+  EM_FX_FUTURES:
+    assets: [ 6Z=F, 6M=F, KRW=F]
+
+  AGRICULTURE_FUTURES:
+    assets: [ ZC=F, ZS=F, ZW=F, ZM=F, ZL=F, ZT=F, HE=F, LE=F ]
+
+  MICRO_FUTURES:
+    assets: [ MCL=F, MGC=F, SIL=F, MHO=F, MCD=F ]

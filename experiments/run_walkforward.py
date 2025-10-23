@@ -1,7 +1,9 @@
 # ============================================================
-# experiments/run_walkforward.py — univers-aware version + trade logger
+# experiments/run_walkforward.py — univers-aware + trade logger
+# Logs uniquement pour l’estimation β et le z-score (pas pour les prix)
 # ============================================================
 import os
+import numpy as np
 from pathlib import Path
 import pandas as pd
 
@@ -11,22 +13,14 @@ from core.hedge_ratio import fit_beta_expanding_monthly, fit_beta_static
 from core.backtest import backtest_pair
 
 # === Nouveau module pour log des exécutions ===
-from datetime import datetime
 from src.trading.execution_logger import ExecutionLogger
 
 if __name__ == "__main__":
-    # === 1️⃣ Lecture des variables d'environnement ===
+    # === 1️⃣ Variables d'environnement ===
     path_data = os.getenv("UNIVERSE_FILE", "data/prices.csv")
     universe_name = os.getenv("UNIVERSE_NAME", "UNSPECIFIED")
     assets_env = os.getenv("UNIVERSE_ASSETS", "")
     tickers = [t for t in assets_env.split(",") if t]
-
-    if not tickers:
-        tickers = [
-            "GS", "JPM", "BK", "WFC", "MS", "C", "USB",
-            "XOM", "CVX", "BP", "AAPL", "MSFT", "GOOGL", "AMZN"
-        ]
-        print("⚠️ Aucun UNIVERSE_ASSETS fourni, fallback vers tickers par défaut.")
 
     # === 2️⃣ Configuration du pipeline ===
     cfg = Settings(
@@ -36,7 +30,7 @@ if __name__ == "__main__":
         tz=None,
         freq_out="1h",
         price_col_suffix=None,
-        log_prices=True,
+        log_prices=False,   # ⬅️ IMPORTANT : prix réels
         start="2024-01-01",
         end=None,
         how="last"
@@ -58,7 +52,7 @@ if __name__ == "__main__":
     os.makedirs("results/equities/static", exist_ok=True)
     os.makedirs("results/equities/wf", exist_ok=True)
 
-    # === 3️⃣ Initialisation du logger global pour la stratégie ===
+    # === 3️⃣ Logger de trades ===
     trade_logger_static = ExecutionLogger("Static", log_dir="results/trades")
     trade_logger_wf = ExecutionLogger("WF", log_dir="results/trades")
 
@@ -79,59 +73,81 @@ if __name__ == "__main__":
         print(f"→ Backtest {a}-{b} ...", end=" ")
 
         try:
+            # --- β sur LOGS pour le signal ---
+            y_log = np.log(y)
+            x_log = np.log(x)
+
             # --- Statique ---
-            beta_static = fit_beta_static(y, x)
+            beta_static = fit_beta_static(y_log, x_log)
             beta_series_static = pd.Series(beta_static, index=y.index)
             res_static = backtest_pair(y, x, beta_series_static, window=24 * 45)
 
-            # 🔹 Si le backtest renvoie les trades individuels
             if "trades_df" in res_static:
                 for _, t in res_static["trades_df"].iterrows():
+
+                    entry_px_x = t.get("entry_px_x", x.loc[t["entry_time"]] if t["entry_time"] in x.index else None)
+                    entry_px_y = t.get("entry_px_y", y.loc[t["entry_time"]] if t["entry_time"] in y.index else None)
+
                     trade_logger_static.log_trade(
                         pair=f"{a}-{b}",
-                        side_x=t.get("side_x", "long"),
-                        side_y=t.get("side_y", "short"),
-                        vol_x=t.get("volume_x", 1),
-                        vol_y=t.get("volume_y", 1),
+                        side_x=t.get("side_x", "short" if t.get("side_y") == "long" else "long"),
+                        side_y=t.get("side_y", "long"),
+                        vol_x=t.get("qty_x", 0),
+                        vol_y=t.get("qty_y", 0),
                         entry_time=pd.to_datetime(t["entry_time"]),
                         exit_time=pd.to_datetime(t["exit_time"]),
-                        entry_px_x=t.get("entry_px_x", y.loc[t["entry_time"]] if t["entry_time"] in y.index else None),
-                        entry_px_y=t.get("entry_px_y", x.loc[t["entry_time"]] if t["entry_time"] in x.index else None),
-                        exit_px_x=t.get("exit_px_x", y.loc[t["exit_time"]] if t["exit_time"] in y.index else None),
-                        exit_px_y=t.get("exit_px_y", x.loc[t["exit_time"]] if t["exit_time"] in x.index else None),
+                        entry_px_x=entry_px_x,
+                        entry_px_y= entry_px_y,
+                        exit_px_x=t.get("exit_px_x", x.loc[t["exit_time"]] if t["exit_time"] in x.index else None),
+                        exit_px_y=t.get("exit_px_y", y.loc[t["exit_time"]] if t["exit_time"] in y.index else None),
                         pnl_x=t.get("pnl_x", 0),
                         pnl_y=t.get("pnl_y", 0),
                         reason=t.get("reason", "signal")
                     )
+                    if entry_px_x is None or entry_px_y is None:
+                        print(f"⚠️ Prix manquant pour {a}-{b} à {t['entry_time']}")
+                        continue
 
-            res_static.update({"pair": f"{a}-{b}", "mode": "Static"})
+            res_static.update({
+                "pair": f"{a}-{b}",
+                "mode": "Static",
+                "PnL_Latent": res_static["pnl_latent"],
+                "PnL_Realized": res_static["pnl_realized"],
+                "PnL_Total": res_static["pnl_total"]
+            })
+
             res_static["equity"].to_csv(f"results/equities/static/{a}-{b}.csv")
 
             # --- Walk-forward ---
-            beta_series_wf = fit_beta_expanding_monthly(y, x, min_hist=200)
+            beta_series_wf = fit_beta_expanding_monthly(y_log, x_log, min_hist=200)
             res_wf = backtest_pair(y, x, beta_series_wf, window=24 * 45)
 
-            # 🔹 Log complet des trades WF
             if "trades_df" in res_wf:
                 for _, t in res_wf["trades_df"].iterrows():
                     trade_logger_wf.log_trade(
                         pair=f"{a}-{b}",
-                        side_x=t.get("side_x", "long"),
-                        side_y=t.get("side_y", "short"),
-                        vol_x=t.get("volume_x", 1),
-                        vol_y=t.get("volume_y", 1),
+                        side_x=t.get("side_x", "short" if t.get("side_y") == "long" else "long"),
+                        side_y=t.get("side_y", "long"),
+                        vol_x=t.get("qty_x", 0),
+                        vol_y=t.get("qty_y", 0),
                         entry_time=pd.to_datetime(t["entry_time"]),
                         exit_time=pd.to_datetime(t["exit_time"]),
-                        entry_px_x=t.get("entry_px_x", y.loc[t["entry_time"]] if t["entry_time"] in y.index else None),
-                        entry_px_y=t.get("entry_px_y", x.loc[t["entry_time"]] if t["entry_time"] in x.index else None),
-                        exit_px_x=t.get("exit_px_x", y.loc[t["exit_time"]] if t["exit_time"] in y.index else None),
-                        exit_px_y=t.get("exit_px_y", x.loc[t["exit_time"]] if t["exit_time"] in x.index else None),
+                        entry_px_x=t.get("entry_px_x", x.loc[t["entry_time"]] if t["entry_time"] in x.index else None),
+                        entry_px_y=t.get("entry_px_y", y.loc[t["entry_time"]] if t["entry_time"] in y.index else None),
+                        exit_px_x=t.get("exit_px_x", x.loc[t["exit_time"]] if t["exit_time"] in x.index else None),
+                        exit_px_y=t.get("exit_px_y", y.loc[t["exit_time"]] if t["exit_time"] in y.index else None),
                         pnl_x=t.get("pnl_x", 0),
                         pnl_y=t.get("pnl_y", 0),
                         reason=t.get("reason", "signal")
                     )
 
-            res_wf.update({"pair": f"{a}-{b}", "mode": "WF"})
+            res_wf.update({
+                "pair": f"{a}-{b}",
+                "mode": "WF",
+                "PnL_Latent": res_wf["pnl_latent"],
+                "PnL_Realized": res_wf["pnl_realized"],
+                "PnL_Total": res_wf["pnl_total"]
+            })
             res_wf["equity"].to_csv(f"results/equities/wf/{a}-{b}.csv")
 
             results.extend([res_static, res_wf])
@@ -151,7 +167,9 @@ if __name__ == "__main__":
         "Mode": r["mode"],
         "Sharpe": r["sharpe"],
         "MaxDD": r["max_dd"],
-        "FinalPnL": float(r["equity"].iloc[-1]),
+        "FinalPnL": float(r.get("pnl_realized", r["equity"].iloc[-1])),
+        "PnL_Latent": float(r.get("pnl_latent", 0.0)),
+        "PnL_Total": float(r.get("pnl_total", r["equity"].iloc[-1])),
         "Trades": r["trades"],
         "Universe": universe_name
     } for r in results])
