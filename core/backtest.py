@@ -13,7 +13,6 @@ with open(CONFIG_PATH, "r") as f:
     params = yaml.safe_load(f)
 INITIAL_CAPITAL = params.get("initial_capital", 10_000)
 
-
 def backtest_pair(
     y: pd.Series,
     x: pd.Series,
@@ -28,11 +27,11 @@ def backtest_pair(
     - Signal et z-score calculés sur les LOGS (log(y), log(x)).
     - Sizing et PnL calculés en EUROS sur PRIX RÉELS.
     - Allocation par trade = INITIAL_CAPITAL réparti ~dollar-neutral via |β|.
-      w_y = 1/(1+|β|) sur 'y', w_x = |β|/(1+|β|) sur 'x'.
+      w_y = 1/(1+|β|) sur 'y', w_x = |β|/(1+|β|).
 
-    Retour:
-      equity (euros), pnl (euros/bar), sharpe, max_dd, trades, trades_df,
-      + pnl_realized, pnl_latent, pnl_total
+    Stop-loss structurel :
+      - σ-stop à 4.0 (écart extrême)
+      - perte max de 5 % du capital alloué
     """
 
     # === Alignement & noms ===
@@ -56,17 +55,60 @@ def backtest_pair(
     enter_short = z > entry_z
     exit_all = z.abs() < exit_z
 
+    # === Stop-loss structurel ===
+    stop_sigma = 4.0
+    stop_loss_pct = 0.05
+
     pos = pd.Series(0.0, index=z.index)
     trades = []
     current_trade = None
+    pnl_bar = pd.Series(0.0, index=y.index)
 
     dy, dx = y.diff().fillna(0.0), x.diff().fillna(0.0)
-    pnl_bar = pd.Series(0.0, index=y.index)
 
     for i in range(1, len(z)):
         t = z.index[i]
         prev_pos = pos.iloc[i - 1]
         pos.iloc[i] = prev_pos
+
+        # --- STOP-LOSS STRUCTUREL ---
+        if current_trade is not None:
+            entry_px_y = current_trade["entry_px_y"]
+            entry_px_x = current_trade["entry_px_x"]
+            qty_y = current_trade["qty_y"]
+            qty_x = current_trade["qty_x"]
+            side_y = current_trade["side_y"]
+            side_x = current_trade["side_x"]
+
+            sign_y = +1 if side_y == "long" else -1
+            sign_x = +1 if side_x == "long" else -1
+            pnl_y = sign_y * qty_y * (y.iloc[i] - entry_px_y)
+            pnl_x = sign_x * qty_x * (x.iloc[i] - entry_px_x)
+            pnl_now = pnl_y + pnl_x
+
+            reason = None
+            if abs(z.iloc[i]) > stop_sigma:
+                reason = "stop_sigma"
+            elif pnl_now < -stop_loss_pct * INITIAL_CAPITAL:
+                reason = "stop_loss"
+
+            if reason is not None:
+                pos.iloc[i] = 0.0
+                exit_time = t
+                exit_px_y, exit_px_x = y.iloc[i], x.iloc[i]
+                current_trade.update({
+                    "exit_time": exit_time,
+                    "exit_px_y": exit_px_y,
+                    "exit_px_x": exit_px_x,
+                    "pnl_y": pnl_y,
+                    "pnl_x": pnl_x,
+                    "pnl_total": pnl_now,
+                    "reason": reason,
+                    "duration_h": (exit_time - current_trade["entry_time"]).total_seconds() / 3600,
+                })
+                trades.append(current_trade)
+                current_trade = None
+                continue  # skip le reste pour ce pas de temps
 
         # ---------- EXIT ----------
         if prev_pos != 0.0 and exit_all.iloc[i]:
@@ -149,10 +191,6 @@ def backtest_pair(
             }
 
     # ---------- FIN DU BACKTEST ----------
-    # Option A : on laisse la position OUVERTE (non close)
-    # -> pas d'append dans trades, on calcule juste le latent ci-dessous.
-
-    # === Equity & métriques ===
     equity = pnl_bar.cumsum()
     vol = pnl_bar.std()
     sharpe = (annualize_factor * pnl_bar.mean() / (vol + 1e-12)) if vol > 0 else 0.0

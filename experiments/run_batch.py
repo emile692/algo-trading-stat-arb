@@ -12,9 +12,11 @@ import yaml
 
 from data.download_prices import download_prices
 
-CONFIG_PATH = Path("config/params.yaml")
-RESULTS_DIR = Path("results/batch")
-DATA_DIR = Path("data")
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+
+CONFIG_PATH = PROJECT_ROOT / "config" / "params.yaml"
+RESULTS_DIR = PROJECT_ROOT / "results" / "batch"
+DATA_DIR = PROJECT_ROOT / "data"
 RESULTS_DIR.mkdir(parents=True, exist_ok=True)
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -23,7 +25,7 @@ with open(CONFIG_PATH, "r", encoding="utf-8") as f:
     params = yaml.safe_load(f)
 
 universes = params["universes"]
-mode = params.get("mode", "per_universe")  # 'per_universe' | 'pooled'
+mode = params.get("mode", "per_universe")
 start = params.get("start", "2024-01-01")
 interval = params.get("interval", "1h")
 

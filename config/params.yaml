@@ -2,7 +2,6 @@
 # Paramètres généraux
 # ==========================
 seed: 42
-freq: "1H"
 train_ratio: 0.7
 val_ratio: 0.15
 test_ratio: 0.15
@@ -21,8 +20,9 @@ backtest:
 # Univers à backtester (multi-run)
 # ==========================
 mode: per_universe
-start: "2024-01-01"
-interval: "1h"
+data_provider: "finnhub"
+start: "2020-01-01"
+interval: "1d"
 
 universes:
   # Technologies & Innovation
